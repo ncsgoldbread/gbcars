@@ -83,6 +83,21 @@ try {
     throw new HttpError(404, 'ไม่พบ API: ' . $method . ' /' . implode('/', $seg));
 } catch (HttpError $e) {
     json_out(array_filter(['error' => $e->getMessage(), 'field' => $e->field]), $e->status);
+} catch (PDOException $e) {
+    error_log('[gbcars] ' . $e);
+    // name the setup problem (never the credentials) so a fresh deploy is easy to diagnose
+    // query errors carry the MySQL code in errorInfo; connection errors only in the text: "SQLSTATE[HY000] [1045] ..."
+    $code = (int)($e->errorInfo[1] ?? 0);
+    if (!$code && preg_match('/\[(\d{4})\]/', $e->getMessage(), $m)) $code = (int)$m[1];
+    $msg = match (true) {
+        $code === 1045 => 'เชื่อมต่อฐานข้อมูลไม่ได้: ชื่อผู้ใช้หรือรหัสผ่านใน config/config.php ไม่ถูกต้อง',
+        $code === 1044, $code === 1049 => 'เชื่อมต่อฐานข้อมูลไม่ได้: ไม่พบฐานข้อมูลที่ตั้งไว้ใน config/config.php หรือผู้ใช้ไม่มีสิทธิ์',
+        $code === 2002, $code === 2005, $code === 2006 => 'เชื่อมต่อฐานข้อมูลไม่ได้: ตรวจค่า host/port ใน config/config.php',
+        $code === 1146 => 'ฐานข้อมูลยังไม่มีตาราง: กรุณานำเข้าไฟล์ SQL ผ่าน phpMyAdmin',
+        $code === 1054 => 'โครงสร้างฐานข้อมูลไม่ตรงกับเวอร์ชันโปรแกรม: กรุณานำเข้าไฟล์ SQL ล่าสุด',
+        default => config('debug') ? $e->getMessage() : 'เกิดข้อผิดพลาดของฐานข้อมูล (ดูรายละเอียดใน error log)',
+    };
+    json_out(['error' => $msg], 500);
 } catch (Throwable $e) {
     error_log('[gbcars] ' . $e);
     json_out(['error' => config('debug') ? $e->getMessage() : 'เกิดข้อผิดพลาดในระบบ'], 500);
