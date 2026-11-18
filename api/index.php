@@ -95,7 +95,9 @@ try {
         $code === 2002, $code === 2005, $code === 2006 => 'เชื่อมต่อฐานข้อมูลไม่ได้: ตรวจค่า host/port ใน config/config.php',
         $code === 1146 => 'ฐานข้อมูลยังไม่มีตาราง: กรุณานำเข้าไฟล์ SQL ผ่าน phpMyAdmin',
         $code === 1054 => 'โครงสร้างฐานข้อมูลไม่ตรงกับเวอร์ชันโปรแกรม: กรุณานำเข้าไฟล์ SQL ล่าสุด',
-        default => config('debug') ? $e->getMessage() : 'เกิดข้อผิดพลาดของฐานข้อมูล (ดูรายละเอียดใน error log)',
+        str_contains($e->getMessage(), 'could not find driver') => 'เซิร์ฟเวอร์ยังไม่ได้เปิด PHP extension pdo_mysql',
+        default => config('debug') ? $e->getMessage()
+            : 'เกิดข้อผิดพลาดของฐานข้อมูล (รหัส ' . ($code ?: ($e->errorInfo[0] ?? $e->getCode())) . ') ดูรายละเอียดใน error log',
     };
     json_out(['error' => $msg], 500);
 } catch (Throwable $e) {
