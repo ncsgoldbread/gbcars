@@ -1,0 +1,2 @@
+# Files are served only through api/index.php/file/... after login.
+Require all denied

@@ -1,0 +1,23 @@
+{
+  "name": "GB CarSys — ระบบบริหารการใช้รถ",
+  "short_name": "GB CarSys",
+  "description": "จองรถ อนุมัติ ปฏิทินรถ และแจ้งเตือนเอกสารรถ",
+  "lang": "th",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#172033",
+  "theme_color": "#172033",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "จองใช้รถ", "url": "./#/booking/new", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "ปฏิทินการใช้รถ", "url": "./#/calendar", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "งานรออนุมัติ", "url": "./#/approve", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
