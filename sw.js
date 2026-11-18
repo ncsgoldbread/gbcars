@@ -1,5 +1,5 @@
 // GB CarSys service worker — app shell offline + cached API reads
-const VERSION = 'gbcars-v3';
+const VERSION = 'gbcars-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',

@@ -45,7 +45,14 @@ function dashboard(): array
     foreach ($mine as &$m) $m['status_text'] = BOOKING_STATUS[(string)$m['status']] ?? '';
     foreach ($todayTrips as &$t) $t['status_text'] = BOOKING_STATUS[(string)$t['status']] ?? '';
 
+    $inUse = (int)val("SELECT COUNT(DISTINCT car_id) FROM tb_booking WHERE status IN (2,5) AND start_date <= ? AND end_date >= ?", [now(), now()]);
+    $week = rows("SELECT b.id, b.docno, b.status, b.start_date, b.end_date, b.working, c.code AS car_code, b.person_name
+        FROM tb_booking b LEFT JOIN tb_car c ON c.id = b.car_id
+        WHERE b.status IN (0,1,2) AND b.start_date > ? AND b.start_date <= ? ORDER BY b.start_date LIMIT 8", [$today . ' 23:59:59', date('Y-m-d', strtotime('+7 days')) . ' 23:59:59']);
+    foreach ($week as &$w) $w['status_text'] = BOOKING_STATUS[(string)$w['status']] ?? '';
     return [
+        'inUse' => $inUse,
+        'week' => $week,
         'cars' => ['total' => array_sum($carStatus), 'status' => $carStatus],
         'drivers' => (int)val('SELECT COUNT(*) FROM tb_driver WHERE status = 0'),
         'counts' => booking_counts(),

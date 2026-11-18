@@ -4,7 +4,7 @@ const CAT_ICON = { 'การจอง': 'calendar', 'การใช้รถ':
 
 export async function render(ctx) {
   if (ctx.route.name) return renderReport(ctx, ctx.route.name);
-  ctx.setTitle('รายงาน', 'เลือกรายงานที่ต้องการ — พิมพ์ได้ และส่งออกเป็น Excel (CSV)');
+  ctx.setTitle('รายงาน', 'เลือกรายงานที่ต้องการ — พิมพ์ได้ และส่งออกเป็น Excel (CSV)', 'รายงานทั้งหมด');
   const defs = state.meta.reports;
   const cats = {};
   for (const [k, d] of Object.entries(defs)) (cats[d.cat] ||= []).push([k, d]);

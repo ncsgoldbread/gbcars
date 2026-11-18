@@ -14,6 +14,7 @@ const BUSY_STATUSES = '0,1,2,5';
 function booking_select(): string
 {
     return "SELECT b.*, CONCAT_WS(' ', c.code, IF(c.carno<>'', CONCAT('(', c.carno, ')'), NULL), c.model) AS car_id__t, c.picture1 AS car_picture,
+        c.code AS car_code, c.carno AS car_no, c.model AS car_model, pv.name AS car_province,
         CONCAT(IFNULL(d.title,''), d.firstname, ' ', IFNULL(d.surname,'')) AS driver_id__t, d.tel AS driver_tel,
         CONCAT_WS(' ', dp.code, dp.name) AS depart_id__t,
         CONCAT(IFNULL(us.title,''), us.firstname, ' ', IFNULL(us.surname,'')) AS user_save_id__t,
@@ -23,7 +24,8 @@ function booking_select(): string
         LEFT JOIN tb_driver d ON d.id = b.driver_id
         LEFT JOIN tb_depart dp ON dp.id = b.depart_id
         LEFT JOIN tb_user us ON us.id = b.user_save_id
-        LEFT JOIN tb_user ua ON ua.id = b.user_approve_id";
+        LEFT JOIN tb_user ua ON ua.id = b.user_approve_id
+        LEFT JOIN tb_province pv ON pv.code = c.prov_code";
 }
 
 function can_approve(array $b): bool
@@ -101,15 +103,15 @@ function booking_input(array $in): array
         $d[$k] = ($v === '') ? null : $v;
     }
     foreach (['start_date', 'end_date'] as $k) {
-        if (empty($d[$k])) throw new HttpError(422, 'กรุณาระบุวันเวลาเริ่มและสิ้นสุด');
+        if (empty($d[$k])) throw new HttpError(422, 'กรุณาระบุวันเวลาเริ่มและสิ้นสุด', $k);
         $v = str_replace('T', ' ', (string)$d[$k]);
-        if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) throw new HttpError(422, 'รูปแบบวันเวลาไม่ถูกต้อง');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) throw new HttpError(422, 'รูปแบบวันเวลาไม่ถูกต้อง', $k);
         $d[$k] = strlen($v) === 16 ? "$v:00" : $v;
     }
-    if (strtotime($d['end_date']) <= strtotime($d['start_date'])) throw new HttpError(422, 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม');
-    if (empty($d['car_id'])) throw new HttpError(422, 'กรุณาเลือกรถ');
-    if (empty($d['working'])) throw new HttpError(422, 'กรุณาระบุภารกิจ');
-    if (empty($d['depart_id'])) throw new HttpError(422, 'กรุณาเลือกแผนก');
+    if (strtotime($d['end_date']) <= strtotime($d['start_date'])) throw new HttpError(422, 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม', 'end_date');
+    if (empty($d['car_id'])) throw new HttpError(422, 'กรุณาเลือกรถ', 'car_id');
+    if (empty($d['working'])) throw new HttpError(422, 'กรุณาระบุภารกิจ', 'working');
+    if (empty($d['depart_id'])) throw new HttpError(422, 'กรุณาเลือกแผนก', 'depart_id');
     foreach (['car_id', 'driver_id', 'depart_id', 'passenger_amount'] as $k) {
         if (isset($d[$k]) && $d[$k] !== null) $d[$k] = (int)$d[$k];
     }
@@ -274,16 +276,20 @@ function calendar_events(): array
 function booking_counts(): array
 {
     $u = current_user();
-    if (!$u) return ['approve' => 0, 'return' => 0];
+    if (!$u) return ['approve' => 0, 'return' => 0, 'expired' => 0, 'expiring' => 0];
+    $soon = date('Y-m-d', strtotime('+30 days'));
+    $today = date('Y-m-d');
+    $least = "LEAST(IFNULL(date_e_code,'9999-12-31'), IFNULL(date_e_cpi,'9999-12-31'), IFNULL(date_e_insure,'9999-12-31'))";
+    $docs = row("SELECT SUM($least < ?) expired, SUM($least >= ? AND $least <= ?) expiring FROM tb_car WHERE status <> 3", [$today, $today, $soon]);
+    $out = ['approve' => 0, 'return' => 0, 'expired' => (int)($docs['expired'] ?? 0), 'expiring' => (int)($docs['expiring'] ?? 0)];
     if (is_admin()) {
         $where = '1=1';
     } else {
         $departs = approver_departs((int)$u['id']);
-        if (!$departs) return ['approve' => 0, 'return' => 0];
+        if (!$departs) return $out;
         $where = 'depart_id IN (' . implode(',', $departs) . ')';
     }
-    return [
-        'approve' => (int)val("SELECT COUNT(*) FROM tb_booking WHERE $where AND status IN (0,1)"),
-        'return' => (int)val("SELECT COUNT(*) FROM tb_booking WHERE $where AND status = 5"),
-    ];
+    $out['approve'] = (int)val("SELECT COUNT(*) FROM tb_booking WHERE $where AND status IN (0,1)");
+    $out['return'] = (int)val("SELECT COUNT(*) FROM tb_booking WHERE $where AND status = 5");
+    return $out;
 }

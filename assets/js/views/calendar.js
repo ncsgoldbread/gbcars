@@ -1,22 +1,22 @@
 import { state, html, mount, $, icon, get, qs, ymd, fmtDate, fmtRange, bookingBadge, bookingTone, TH_MONTHS, TH_DOW, parseDate, modal, emptyHtml, enhanceCombos, loadingHtml } from '../core.js';
 
-export async function render({ root, setTitle, alive, route }) {
-  setTitle('ปฏิทินการใช้รถ', 'ดูรถว่าง/ไม่ว่าง และรายการจองทั้งหมด');
+export async function render({ root, setTitle, setActions, alive, route }) {
+  setTitle('ปฏิทินการใช้รถ', 'ตรวจสอบรถว่าง และรายการจองทั้งหมดในแต่ละวัน — คลิกวันที่เพื่อดูรายละเอียด');
+  setActions(html`<a class="btn btn-primary" href="#/booking/new">${icon('plus')} จองใช้รถ</a>`);
   const q = route.q || {};
   let cur = q.m ? new Date(+q.m.slice(0, 4), +q.m.slice(5, 7) - 1, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let carId = q.car || '';
 
   mount(root, html`<div class="card">
     <div class="card-h">
-      <div class="row"><button class="btn btn-icon" id="prev" aria-label="เดือนก่อน">${icon('chevL')}</button>
-      <button class="btn btn-sm" id="today">วันนี้</button>
-      <button class="btn btn-icon" id="next" aria-label="เดือนถัดไป">${icon('chevR')}</button></div>
-      <h2 id="mtitle" class="grow" style="min-width:160px"></h2>
-      <div style="width:min(280px,100%)"><div class="combo" data-lookup="car" data-name="car_filter" data-value="${carId}"></div></div>
-      <a class="btn btn-primary" href="#/booking/new">${icon('plus')} จองรถ</a>
+      <div class="row tight"><button class="btn btn-icon" id="prev" aria-label="เดือนก่อน">${icon('chevL')}</button>
+      <button class="btn btn-icon" id="next" aria-label="เดือนถัดไป">${icon('chevR')}</button>
+      <button class="btn btn-sm" id="today">วันนี้</button></div>
+      <h2 id="mtitle" class="grow" style="min-width:160px;font-size:1.1rem"></h2>
+      <div style="width:min(300px,100%)" title="กรองตามรถ"><div class="combo" data-lookup="car" data-name="car_filter" data-placeholder="กรองตามรถ — แสดงทุกคัน" data-value="${carId}"></div></div>
     </div>
     <div id="cal">${loadingHtml()}</div>
-    <div class="card-b row small muted" style="gap:16px">
+    <div class="card-f row small muted" style="gap:16px;justify-content:flex-start">
       ${['0', '1', '2', '5', '6'].map((s) => html`<span class="row" style="gap:6px"><span class="badge tone-${bookingTone(s)} plain" style="padding:0;width:12px;height:12px"></span>${state.meta.bookingStatus[s]}</span>`)}
     </div>
   </div>`);
@@ -44,7 +44,7 @@ export async function render({ root, setTitle, alive, route }) {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const k = ymd(d);
       const evs = byDay.get(k) || [];
-      cells.push(html`<div class="day ${d.getMonth() !== cur.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''}" data-day="${k}">
+      cells.push(html`<div class="day ${d.getMonth() !== cur.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${[0, 6].includes(d.getDay()) ? 'weekend' : ''}" data-day="${k}" role="button" tabindex="0" aria-label="${fmtDate(d)} ${evs.length ? `มี ${evs.length} รายการ` : 'ว่าง'}">
         <span class="dn">${d.getDate()}</span>
         ${evs.slice(0, 3).map((ev) => html`<div class="ev tone-${bookingTone(ev.status)}" title="${ev.car_code} ${ev.working}">${ev.car_code || ''} ${ev.working || ''}</div>`)}
         ${evs.length > 3 ? html`<span class="more">+${evs.length - 3} รายการ</span>` : ''}</div>`);

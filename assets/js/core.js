@@ -68,11 +68,16 @@ const P = {
   install: '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10.5 18.5h3"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 3.5V8h4.5M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20.5V16h-4.5"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+  arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
 };
 export const icon = (n, cls = '') => raw(`<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || P.doc}</svg>`);
 
 /* ---------- API ---------- */
-export class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+export class ApiError extends Error { constructor(msg, status, field) { super(msg); this.status = status; this.field = field; } }
 
 export async function api(method, path, data, { retry = true } = {}) {
   const opt = { method, headers: { Accept: 'application/json' }, credentials: 'same-origin' };
@@ -86,7 +91,7 @@ export async function api(method, path, data, { retry = true } = {}) {
   try { json = await res.json(); } catch { /* not json */ }
   if (res.status === 419 && retry) { await loadSession(); return api(method, path, data, { retry: false }); }
   if (res.status === 401 && path !== 'login') { state.user = null; window.dispatchEvent(new Event('auth:lost')); }
-  if (!res.ok) throw new ApiError(json?.error || `เกิดข้อผิดพลาด (${res.status})`, res.status);
+  if (!res.ok) throw new ApiError(json?.error || `เกิดข้อผิดพลาด (${res.status})`, res.status, json?.field);
   return json;
 }
 export const get = (p) => api('GET', p);
@@ -313,7 +318,7 @@ export async function enhanceCombos(root, texts = {}) {
     let items = [];
     try { items = await lookup(c.dataset.lookup); } catch { /* offline */ }
     const hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = name; hidden.value = c.dataset.value || '';
-    const inp = document.createElement('input'); inp.className = 'input'; inp.autocomplete = 'off'; inp.id = `f-${name}`; inp.placeholder = ro ? '' : 'พิมพ์เพื่อค้นหา…';
+    const inp = document.createElement('input'); inp.className = 'input'; inp.autocomplete = 'off'; inp.id = `f-${name}`; inp.placeholder = ro ? '' : (c.dataset.placeholder || 'พิมพ์เพื่อค้นหา…');
     if (ro) inp.readOnly = true;
     const cur = items.find((i) => String(i.id) === hidden.value);
     inp.value = cur ? cur.text : (texts[name] || '');
@@ -364,7 +369,53 @@ export function setBusy(btn, busy, label) {
 }
 
 export const loadingHtml = () => html`<div class="loading"><div class="spinner"></div></div>`;
-export const emptyHtml = (msg = 'ไม่พบข้อมูล', ic = 'inbox') => html`<div class="empty-state">${icon(ic)}<div>${msg}</div></div>`;
+export const skeletonRows = (n = 6) => html`<div aria-busy="true">${Array.from({ length: n }, () => html`<div class="sk-row">${[1, 2, 3, 4, 5].map(() => html`<div class="skeleton sk-line"></div>`)}</div>`)}</div>`;
+export const skeletonBlock = (h = 120) => html`<div class="skeleton" style="height:${h}px;border-radius:14px"></div>`;
+
+/** Thai licence-plate chip: plate('3 ฒว 9217', 'กรุงเทพมหานคร') */
+export const plate = (code, province = '', size = '') => code
+  ? html`<span class="plate ${size}">${code}${province ? html`<small>${province}</small>` : ''}</span>`
+  : html`<span class="muted">-</span>`;
+
+/* ---------- inline form validation ---------- */
+export function clearFieldErrors(root) {
+  $$('.field-error', root).forEach((e) => e.remove());
+  $$('.invalid', root).forEach((e) => e.classList.remove('invalid'));
+}
+export function showFieldError(root, name, msg) {
+  const el = root.querySelector(`[name="${name}"]`);
+  const field = el?.closest('.field');
+  if (!field) return false;
+  field.classList.add('invalid');
+  field.querySelector('.field-error')?.remove();
+  field.insertAdjacentHTML('beforeend', `<div class="field-error">${render(icon('alert'))}<span>${esc(msg)}</span></div>`);
+  const focusEl = field.querySelector('input:not([type=hidden]), select, textarea');
+  field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => focusEl?.focus({ preventScroll: true }), 250);
+  return true;
+}
+/** Client-side check of required fields; returns true when the form is OK. */
+export function checkRequired(root, fields) {
+  clearFieldErrors(root);
+  let first = null;
+  for (const f of fields) {
+    if (!f.required || f.hidden || f.readonly || f.type === 'password') continue;
+    const el = root.querySelector(`[name="${f.name}"]`);
+    if (el && !String(el.value).trim()) {
+      const field = el.closest('.field');
+      field?.classList.add('invalid');
+      field?.insertAdjacentHTML('beforeend', `<div class="field-error">${render(icon('alert'))}<span>${['lookup', 'select', 'date', 'datetime', 'time'].includes(f.type) ? 'กรุณาเลือก' : 'กรุณากรอก'}${esc(f.label)}</span></div>`);
+      first ||= f.name;
+    }
+  }
+  if (first) { const el = root.querySelector(`[name="${first}"]`)?.closest('.field'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true }); }
+  return !first;
+}
+/** Show an API error next to its field when the server says which one, else as a toast. */
+export function formError(root, err) {
+  if (!(err?.field && showFieldError(root, err.field, err.message))) toastError(err);
+}
+export const emptyHtml = (msg = 'ไม่พบข้อมูล', ic = 'inbox', sub = '') => html`<div class="empty-state"><div class="ic">${icon(ic)}</div><b>${msg}</b>${sub ? html`<div class="small">${sub}</div>` : ''}</div>`;
 
 export function pager(total, page, per) {
   const pages = Math.max(1, Math.ceil(total / per));

@@ -1,6 +1,7 @@
 import {
   state, html, raw, mount, $, $$, icon, api, get, qs, fmtDate, fmtDateTime, fmtRange, fmtMoney, fmtNum, bookingBadge, parseDate,
   loadingHtml, emptyHtml, pager, debounce, toast, toastError, confirmBox, modal, enhanceCombos, fileUrl, setBusy, fullName, today, lightbox,
+  skeletonRows, skeletonBlock, plate, formError, clearFieldErrors, showFieldError,
 } from '../core.js';
 
 const SCOPES = {
@@ -18,37 +19,45 @@ export async function render(ctx) {
 }
 
 /* ======================= list ======================= */
-async function renderList({ root, setTitle, alive }, scope) {
+async function renderList({ root, setTitle, setActions, alive }, scope) {
   const s = SCOPES[scope];
   setTitle(s.title, s.crumbs);
+  setActions(html`<a class="btn btn-primary" href="#/booking/new">${icon('plus')} จองใช้รถ</a>`);
   const f = { q: '', status: '', from: '', to: '', page: 1 };
   const statuses = state.meta.bookingStatus;
   mount(root, html`<div class="card">
     <div class="toolbar">
-      <div class="search">${icon('search')}<input class="input" id="q" placeholder="ค้นหาเลขที่ ภารกิจ ผู้ขอ ทะเบียน…"></div>
-      ${scope === 'mine' || scope === 'all' ? html`<select class="input" id="status" style="width:auto"><option value="">ทุกสถานะ</option>
+      <div class="search">${icon('search')}<input class="input" id="q" type="search" placeholder="ค้นหาเลขที่ ภารกิจ ผู้ขอ ทะเบียน…" aria-label="ค้นหา"></div>
+      ${scope === 'mine' || scope === 'all' ? html`<select class="input" id="status" style="width:auto" aria-label="สถานะ"><option value="">ทุกสถานะ</option>
         ${Object.entries(statuses).filter(([k]) => k !== '9').map(([k, t]) => html`<option value="${k}">${t}</option>`)}</select>` : ''}
-      <input class="input" type="date" id="from" style="width:auto" title="ตั้งแต่วันที่">
-      <input class="input" type="date" id="to" style="width:auto" title="ถึงวันที่">
-      <span class="grow"></span>
-      <a class="btn btn-primary" href="#/booking/new">${icon('plus')} จองรถ</a>
+      <input class="input" type="date" id="from" style="width:auto" title="ตั้งแต่วันที่" aria-label="ตั้งแต่วันที่">
+      <span class="muted small">ถึง</span>
+      <input class="input" type="date" id="to" style="width:auto" title="ถึงวันที่" aria-label="ถึงวันที่">
+      <span class="meta" id="count"></span>
     </div>
-    <div id="list">${loadingHtml()}</div>
+    <div id="list">${skeletonRows(8)}</div>
   </div>`);
 
   async function load() {
     const data = await get(`booking?${qs({ scope, ...f })}`);
     if (!alive()) return;
+    mount($('#count', root), html`${fmtNum(data.total)} รายการ`);
     const box = $('#list', root);
-    if (!data.rows.length) { mount(box, emptyHtml(scope === 'approve' ? 'ไม่มีงานรออนุมัติ 🎉' : 'ไม่พบรายการจอง')); return; }
+    if (!data.rows.length) {
+      const filtered = f.q || f.status || f.from || f.to;
+      mount(box, filtered ? emptyHtml('ไม่พบรายการที่ค้นหา', 'search', 'ลองเปลี่ยนคำค้นหรือช่วงวันที่')
+        : scope === 'approve' ? emptyHtml('ไม่มีงานรออนุมัติ', 'check', 'คุณจัดการคำขอครบทุกรายการแล้ว')
+        : scope === 'return' ? emptyHtml('ไม่มีรถรอรับคืน', 'check')
+        : emptyHtml('ยังไม่มีรายการจอง', 'doc', html`<a class="btn btn-primary btn-sm" style="margin-top:12px" href="#/booking/new">${icon('plus')} จองใช้รถ</a>`));
+      return;
+    }
     mount(box, html`<div class="table-wrap"><table class="table cards"><thead><tr>
-        <th>เลขที่</th><th>ช่วงเวลา</th><th>รถ</th><th>ภารกิจ</th><th>แผนก / ผู้ขอ</th><th>สถานะ</th></tr></thead><tbody>
-      ${data.rows.map((b) => html`<tr class="click" data-id="${b.id}">
-        <td class="primary nowrap" data-label="เลขที่">${b.docno}</td>
-        <td data-label="ช่วงเวลา">${fmtRange(b.start_date, b.end_date)}</td>
-        <td data-label="รถ">${b.car_id__t || '-'}</td>
-        <td data-label="ภารกิจ">${b.working}${b.province ? html`<div class="muted small">${icon('pin', 'sm')} ${b.province}</div>` : ''}</td>
-        <td data-label="แผนก / ผู้ขอ">${b.depart_id__t || ''}<div class="muted small">${b.person_name || b.user_save_id__t || ''}</div></td>
+        <th>เลขที่ / ภารกิจ</th><th>รถ</th><th>ช่วงเวลา</th><th>แผนก / ผู้ขอ</th><th>สถานะ</th></tr></thead><tbody>
+      ${data.rows.map((b) => html`<tr class="click" data-id="${b.id}" tabindex="0">
+        <td class="primary" data-label="ภารกิจ"><span>${b.working}<span class="sub">${b.docno}${b.province ? ` · ${b.province}` : ''}</span></span></td>
+        <td data-label="รถ">${plate(b.car_code, b.car_province, 'sm')}</td>
+        <td data-label="ช่วงเวลา" class="nowrap">${fmtRange(b.start_date, b.end_date)}</td>
+        <td data-label="แผนก / ผู้ขอ"><span>${b.depart_id__t || '-'}<span class="sub">${b.person_name || b.user_save_id__t || ''}</span></span></td>
         <td data-label="สถานะ">${bookingBadge(b.status)}</td></tr>`)}
       </tbody></table></div>${pager(data.total, data.page, data.per)}`);
   }
@@ -56,8 +65,9 @@ async function renderList({ root, setTitle, alive }, scope) {
     const tr = e.target.closest('tr[data-id]');
     if (tr) location.hash = `#/booking/${tr.dataset.id}`;
     const p = e.target.closest('[data-page]');
-    if (p && !p.disabled) { f.page = +p.dataset.page; load(); }
+    if (p && !p.disabled) { f.page = +p.dataset.page; load(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   });
+  root.addEventListener('keydown', (e) => { const tr = e.target.closest('tr[data-id]'); if (tr && e.key === 'Enter') location.hash = `#/booking/${tr.dataset.id}`; });
   $('#q', root).addEventListener('input', debounce((e) => { f.q = e.target.value; f.page = 1; load(); }));
   ['status', 'from', 'to'].forEach((k) => $(`#${k}`, root)?.addEventListener('change', (e) => { f[k] = e.target.value; f.page = 1; load(); }));
   await load();
@@ -65,8 +75,8 @@ async function renderList({ root, setTitle, alive }, scope) {
 
 /* ======================= form ======================= */
 async function renderForm({ root, setTitle, alive, route }, id) {
-  setTitle(id ? 'แก้ไขการจอง' : 'จองใช้รถ', id ? '' : 'เลือกช่วงเวลา → เลือกรถที่ว่าง → กรอกรายละเอียด');
-  mount(root, loadingHtml());
+  setTitle(id ? 'แก้ไขการจอง' : 'จองใช้รถ', 'เลือกช่วงเวลา → เลือกรถที่ว่าง → กรอกรายละเอียด แล้วส่งให้ผู้อนุมัติ');
+  mount(root, html`<div class="stack">${skeletonBlock(120)}${skeletonBlock(300)}</div>`);
   const u = state.user;
   let b = {
     start_date: `${route.q?.date || today()} 08:00`, end_date: `${route.q?.date || today()} 17:00`,
@@ -81,7 +91,7 @@ async function renderForm({ root, setTitle, alive, route }, id) {
 
   mount(root, html`<form id="bf" class="stack" novalidate>
     <div class="card">
-      <div class="card-h"><span class="badge tone-primary plain">1</span><h2>ช่วงเวลาที่ต้องการใช้รถ</h2></div>
+      <div class="card-h"><span class="step-n">1</span><h2>ช่วงเวลาที่ต้องการใช้รถ</h2></div>
       <div class="card-b"><div class="form-grid">
         <div class="field c1"><label for="start">เริ่ม<span class="req">*</span></label><input class="input" type="datetime-local" id="start" name="start_date" value="${dt(b.start_date)}" required></div>
         <div class="field c1"><label for="end">สิ้นสุด<span class="req">*</span></label><input class="input" type="datetime-local" id="end" name="end_date" value="${dt(b.end_date)}" required></div>
@@ -89,13 +99,13 @@ async function renderForm({ root, setTitle, alive, route }, id) {
       </div></div>
     </div>
     <div class="card">
-      <div class="card-h"><span class="badge tone-primary plain">2</span><h2 class="grow">เลือกรถ</h2>
+      <div class="card-h"><span class="step-n">2</span><h2 class="grow">เลือกรถ <span class="sub" id="car-count"></span></h2>
         <div class="search" style="width:min(260px,100%)">${icon('search')}<input class="input" id="carq" placeholder="ค้นหาทะเบียน/รุ่น"></div>
-        <label class="row small" style="gap:6px"><input type="checkbox" id="onlyfree" checked> เฉพาะรถว่าง</label></div>
-      <div class="card-b"><input type="hidden" name="car_id" id="car_id" value="${b.car_id || ''}"><div id="cars">${loadingHtml()}</div></div>
+        <label class="check"><input type="checkbox" id="onlyfree" checked> เฉพาะรถว่าง</label></div>
+      <div class="card-b" id="car-box"><input type="hidden" name="car_id" id="car_id" value="${b.car_id || ''}"><div id="cars">${loadingHtml()}</div></div>
     </div>
     <div class="card">
-      <div class="card-h"><span class="badge tone-primary plain">3</span><h2>รายละเอียดการใช้รถ</h2></div>
+      <div class="card-h"><span class="step-n">3</span><h2>รายละเอียดการใช้รถ</h2></div>
       <div class="card-b"><div class="form-grid">
         <div class="field c4"><label for="working">ภารกิจ / วัตถุประสงค์<span class="req">*</span></label><input class="input" id="working" name="working" value="${b.working || ''}" required placeholder="เช่น ส่งสินค้า, ติดต่อลูกค้า, ประชุม"></div>
         <div class="field c2"><label>แผนก<span class="req">*</span></label><div class="combo" data-lookup="depart" data-name="depart_id" data-value="${b.depart_id || ''}"></div></div>
@@ -110,7 +120,7 @@ async function renderForm({ root, setTitle, alive, route }, id) {
         <div class="field c2"><label for="docref">เลขที่อ้างอิง</label><input class="input" id="docref" name="docref" value="${b.docref || ''}"></div>
         <div class="field c4"><label for="comment">หมายเหตุ</label><textarea class="input" id="comment" name="comment">${b.comment || ''}</textarea></div>
       </div></div>
-      <div class="card-f"><span class="grow muted small" id="money"></span>
+      <div class="card-f sticky"><span class="grow muted small" id="money"></span>
         <a class="btn" href="${id ? `#/booking/${id}` : '#/booking'}">ยกเลิก</a>
         <button class="btn btn-primary" type="submit">${icon('check')} ${id ? 'บันทึกการแก้ไข' : 'ส่งคำขอจอง'}</button></div>
     </div>
@@ -140,8 +150,8 @@ async function renderForm({ root, setTitle, alive, route }, id) {
     mount($('#cars', root), list.length ? html`<div class="cars-pick">${list.map((c) => html`
       <button type="button" class="car-card ${String(c.id) === cur ? 'sel' : ''} ${c.available ? '' : 'busy'}" data-car="${c.id}" ${c.available ? '' : raw('aria-disabled="true"')}>
         <div class="ph" style="${c.picture1 ? `background-image:url('${fileUrl('car', c.picture1)}')` : ''}">${c.picture1 ? '' : icon('car')}</div>
-        <div class="bd"><b>${c.code}</b><span class="muted">${[c.carno, c.brand, c.model].filter(Boolean).join(' · ')}</span>
-        <div style="margin-top:4px">${c.available ? html`<span class="badge tone-success">ว่าง${c.seats ? ` · ${c.seats} ที่นั่ง` : ''}</span>`
+        <div class="bd">${plate(c.code, '', 'sm')}<span class="muted truncate">${[c.carno, c.brand, c.model].filter(Boolean).join(' · ') || '-'}</span>
+        <div>${c.available ? html`<span class="badge tone-success">ว่าง${c.seats ? ` · ${c.seats} ที่นั่ง` : ''}</span>`
           : c.busy ? html`<span class="badge tone-danger">ไม่ว่าง (${c.busy.docno})</span>` : html`<span class="badge tone-gray">${state.meta.carStatus[c.status]}</span>`}</div></div>
       </button>`)}</div>` : emptyHtml('ไม่มีรถว่างในช่วงเวลานี้ ลองเปลี่ยนเวลา', 'car'));
   };
@@ -150,6 +160,7 @@ async function renderForm({ root, setTitle, alive, route }, id) {
     if (!s || !e || minutes() <= 0) { updateInfo(); return; }
     try { cars = await get(`availability?${qs({ start: s, end: e, exclude: id || 0 })}`); } catch (err) { toastError(err); }
     if (!alive()) return;
+    mount($('#car-count', root), html`· ว่าง ${fmtNum(cars.filter((x) => x.available).length)} จาก ${fmtNum(cars.length)} คัน`);
     const c = sel();
     if (c && !c.available) toast(`รถ ${c.code} ไม่ว่างในช่วงเวลาที่เลือกแล้ว กรุณาเลือกคันอื่น`, 'err');
     drawCars(); updateInfo();
@@ -172,23 +183,24 @@ async function renderForm({ root, setTitle, alive, route }, id) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    if (!data.car_id) return toast('กรุณาเลือกรถ', 'err');
-    if (!data.working.trim()) { $('#working', root).focus(); return toast('กรุณาระบุภารกิจ', 'err'); }
-    if (!data.depart_id) return toast('กรุณาเลือกแผนก', 'err');
+    clearFieldErrors(form);
+    if (!data.car_id) { $('#car-box', root).scrollIntoView({ behavior: 'smooth', block: 'center' }); return toast('กรุณาเลือกรถที่ต้องการจอง', 'err'); }
+    if (!data.working.trim()) return showFieldError(form, 'working', 'กรุณาระบุภารกิจ');
+    if (!data.depart_id) return showFieldError(form, 'depart_id', 'กรุณาเลือกแผนก');
     const btn = e.submitter; setBusy(btn, true);
     try {
       const saved = id ? await api('PUT', `booking/${id}`, data) : await api('POST', 'booking', data);
       toast(id ? 'บันทึกการแก้ไขแล้ว' : `ส่งคำขอจองแล้ว เลขที่ ${saved.docno}`);
       window.dispatchEvent(new Event('counts:refresh'));
       location.hash = `#/booking/${saved.id}`;
-    } catch (err) { toastError(err); setBusy(btn, false); if (err.status === 409) loadCars(); }
+    } catch (err) { formError(form, err); setBusy(btn, false); if (err.status === 409) loadCars(); }
   });
   await loadCars();
 }
 
 /* ======================= detail ======================= */
-async function renderDetail({ root, setTitle, alive }, id) {
-  mount(root, loadingHtml());
+async function renderDetail({ root, setTitle, setActions, alive }, id) {
+  mount(root, html`<div class="grid g-main">${skeletonBlock(360)}${skeletonBlock(360)}</div>`);
   let b = await get(`booking/${id}`);
   if (!alive()) return;
   if (b._can.approve && +b.status === 0) {
@@ -196,6 +208,7 @@ async function renderDetail({ root, setTitle, alive }, id) {
     b.status = 1;
   }
   setTitle(`ใบจอง ${b.docno}`, `สร้างเมื่อ ${fmtDateTime(b.date_create)} โดย ${b.user_save_id__t || '-'}`);
+  setActions(html`<button class="btn" onclick="print()">${icon('print')} พิมพ์</button>${b._can.edit ? html`<a class="btn" href="#/booking/${b.id}/edit">${icon('edit')} แก้ไข</a>` : ''}`);
   const can = b._can;
   const st = +b.status;
   const step = (done, tone, ic, title, when, note) => html`<div class="t"><div class="dot tone-${done ? tone : 'gray'}">${icon(ic)}</div>
@@ -204,7 +217,7 @@ async function renderDetail({ root, setTitle, alive }, id) {
   mount(root, html`<div class="grid g-main">
     <div class="stack">
       <div class="card">
-        <div class="card-h"><h2 class="grow">${b.working}</h2>${bookingBadge(b.status)}</div>
+        <div class="card-h">${plate(b.car_code, b.car_province)}<div class="grow"><h2>${b.working}</h2><div class="muted small">${[b.car_no, b.car_model].filter(Boolean).join(' · ')}</div></div>${bookingBadge(b.status)}</div>
         <div class="card-b"><div class="dl">
           <div><small>ช่วงเวลา</small><span>${fmtRange(b.start_date, b.end_date)}</span></div>
           <div><small>รถ</small><span>${b.car_id ? html`<a href="#/r/car/${b.car_id}">${b.car_id__t}</a>` : '-'}</span></div>
@@ -222,13 +235,11 @@ async function renderDetail({ root, setTitle, alive }, id) {
           ${can.delete ? html`<button class="btn btn-danger" data-act="delete">${icon('trash')} ลบ</button>` : ''}
           <span class="grow"></span>
           ${can.cancel ? html`<button class="btn btn-danger" data-act="cancel">${icon('x')} ยกเลิกการจอง</button>` : ''}
-          ${can.edit ? html`<a class="btn" href="#/booking/${b.id}/edit">${icon('edit')} แก้ไข</a>` : ''}
           ${[2, 5, 6].includes(st) && state.meta.resources.carwork.canWrite ? html`<a class="btn" href="#/r/carwork/new?booking=${b.id}">${icon('route')} บันทึกการใช้รถ</a>` : ''}
           ${can.return ? html`<button class="btn btn-primary" data-act="return">${icon('undo')} ส่งคืนรถ</button>` : ''}
           ${can.receive ? html`<button class="btn btn-success" data-act="receive">${icon('check')} ยืนยันรับคืนรถ</button>` : ''}
           ${can.approve ? html`<button class="btn btn-danger" data-act="reject">${icon('x')} ไม่อนุมัติ</button>
             <button class="btn btn-success" data-act="approve">${icon('check')} อนุมัติ</button>` : ''}
-          <button class="btn btn-icon" onclick="print()" title="พิมพ์">${icon('print')}</button>
         </div>
       </div>
     </div>

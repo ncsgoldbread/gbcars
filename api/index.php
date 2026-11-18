@@ -82,7 +82,7 @@ try {
     }
     throw new HttpError(404, 'ไม่พบ API: ' . $method . ' /' . implode('/', $seg));
 } catch (HttpError $e) {
-    json_out(['error' => $e->getMessage()], $e->status);
+    json_out(array_filter(['error' => $e->getMessage(), 'field' => $e->field]), $e->status);
 } catch (Throwable $e) {
     error_log('[gbcars] ' . $e);
     json_out(['error' => config('debug') ? $e->getMessage() : 'เกิดข้อผิดพลาดในระบบ'], 500);

@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 final class HttpError extends Exception
 {
-    public function __construct(public int $status, string $message)
+    /** @param ?string $field form field the error belongs to (shown next to that input) */
+    public function __construct(public int $status, string $message, public ?string $field = null)
     {
         parent::__construct($message);
     }

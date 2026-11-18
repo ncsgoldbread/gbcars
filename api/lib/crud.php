@@ -88,6 +88,11 @@ function crud_get(array $res, int $id): array
     }
     if ($res['name'] === 'car') {
         $r['_files'] = rows('SELECT id, oldfilename, filename, comment FROM tb_carfile WHERE car_id = ? ORDER BY id DESC', [$id]);
+        $r['_bookings'] = rows("SELECT b.id, b.docno, b.status, b.start_date, b.end_date, b.working, b.person_name, b.province,
+            CONCAT_WS(' ', dp.name) AS depart FROM tb_booking b LEFT JOIN tb_depart dp ON dp.id = b.depart_id
+            WHERE b.car_id = ? ORDER BY b.start_date DESC LIMIT 20", [$id]);
+        $r['_stats'] = row("SELECT COUNT(*) bookings, MAX(start_date) last_used FROM tb_booking WHERE car_id = ? AND status IN (2,5,6)", [$id]);
+        $r['_stats']['repairs'] = (int)val('SELECT COUNT(*) FROM tb_carfix WHERE car_id = ?', [$id]);
     }
     return $r;
 }
@@ -100,26 +105,26 @@ function normalize(array $f, $v)
         case 'money':
             if ($v === '' || $v === null) return null;
             $v = str_replace([',', ' '], '', (string)$v);
-            if (!is_numeric($v)) throw new HttpError(422, "{$f['label']}: ต้องเป็นตัวเลข");
+            if (!is_numeric($v)) throw new HttpError(422, "{$f['label']}: ต้องเป็นตัวเลข", $f['name']);
             return $v + 0;
         case 'lookup':
             return ($v === '' || $v === null) ? null : $v;
         case 'select':
             if ($v === '' || $v === null) return null;
-            if (isset($f['options']) && !array_key_exists((string)$v, $f['options'])) throw new HttpError(422, "{$f['label']}: ค่าไม่ถูกต้อง");
+            if (isset($f['options']) && !array_key_exists((string)$v, $f['options'])) throw new HttpError(422, "{$f['label']}: ค่าไม่ถูกต้อง", $f['name']);
             return $v;
         case 'date':
             if ($v === '' || $v === null) return null;
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$v)) throw new HttpError(422, "{$f['label']}: รูปแบบวันที่ไม่ถูกต้อง");
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$v)) throw new HttpError(422, "{$f['label']}: รูปแบบวันที่ไม่ถูกต้อง", $f['name']);
             return $v;
         case 'datetime':
             if ($v === '' || $v === null) return null;
             $v = str_replace('T', ' ', (string)$v);
-            if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) throw new HttpError(422, "{$f['label']}: รูปแบบวันเวลาไม่ถูกต้อง");
+            if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) throw new HttpError(422, "{$f['label']}: รูปแบบวันเวลาไม่ถูกต้อง", $f['name']);
             return strlen($v) === 16 ? "$v:00" : $v;
         case 'time':
             if ($v === '' || $v === null) return null;
-            if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$v)) throw new HttpError(422, "{$f['label']}: รูปแบบเวลาไม่ถูกต้อง");
+            if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$v)) throw new HttpError(422, "{$f['label']}: รูปแบบเวลาไม่ถูกต้อง", $f['name']);
             return substr((string)$v, 0, 5);
         default:
             return ($v === null) ? null : (string)$v;
@@ -136,19 +141,19 @@ function collect(array $res, array $in, bool $isNew): array
         if ($f['type'] === 'password') {
             $pw = (string)($in[$n] ?? '');
             if ($pw !== '') {
-                if (mb_strlen($pw) < 6) throw new HttpError(422, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+                if (mb_strlen($pw) < 6) throw new HttpError(422, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', $n);
                 $data[$n] = password_hash($pw, PASSWORD_DEFAULT);
             } elseif ($isNew) {
-                throw new HttpError(422, 'กรุณากำหนดรหัสผ่าน');
+                throw new HttpError(422, 'กรุณากำหนดรหัสผ่าน', $n);
             }
             continue;
         }
         if (!array_key_exists($n, $in)) {
-            if ($isNew && !empty($f['required'])) throw new HttpError(422, "กรุณากรอก {$f['label']}");
+            if ($isNew && !empty($f['required'])) throw new HttpError(422, "กรุณากรอก {$f['label']}", $n);
             continue;
         }
         $v = normalize($f, $in[$n]);
-        if (!empty($f['required']) && ($v === null || $v === '')) throw new HttpError(422, "กรุณากรอก {$f['label']}");
+        if (!empty($f['required']) && ($v === null || $v === '')) throw new HttpError(422, "กรุณากรอก {$f['label']}", $n);
         $data[$n] = $v;
     }
     return $data;
@@ -173,7 +178,7 @@ function crud_save(array $res, ?int $id, array $in): array
 
     if ($res['name'] === 'user' && isset($data['username'])) {
         $dup = val('SELECT id FROM tb_user WHERE LOWER(username) = LOWER(?) AND id <> ?', [$data['username'], $id ?? 0]);
-        if ($dup) throw new HttpError(422, 'ชื่อผู้ใช้นี้มีอยู่แล้ว');
+        if ($dup) throw new HttpError(422, 'ชื่อผู้ใช้นี้มีอยู่แล้ว', 'username');
     }
     if ($id === null && !empty($res['docno']) && empty($data['docno'])) {
         $data['docno'] = next_docno($table);
