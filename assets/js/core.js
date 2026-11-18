@@ -181,6 +181,70 @@ export function modal({ title, body, footer, size = '', onClose } = {}) {
   return { el: d, close };
 }
 
+/**
+ * Full-screen photo viewer. images: [{src, caption}]
+ * ←/→ or swipe to browse, click photo to zoom, Esc to close.
+ */
+export function lightbox(images, start = 0, { onReplace } = {}) {
+  if (!images.length) return;
+  let i = Math.max(0, start);
+  const d = document.createElement('dialog');
+  d.className = 'lightbox';
+  mount(d, html`
+    <div class="lb-top"><span class="lb-cap"></span><span class="lb-count"></span>
+      ${onReplace ? html`<button class="lb-btn" data-lb="replace" title="เปลี่ยนรูปนี้">${icon('upload')}<span>เปลี่ยนรูป</span></button>` : ''}
+      <a class="lb-btn" data-lb="open" target="_blank" rel="noopener" title="เปิดรูปต้นฉบับ">${icon('download')}<span>ต้นฉบับ</span></a>
+      <button class="lb-btn" data-lb="close" title="ปิด (Esc)" aria-label="ปิด">${icon('x')}</button></div>
+    <div class="lb-stage"><img alt=""><div class="spinner"></div></div>
+    ${images.length > 1 ? html`<button class="lb-nav prev" data-lb="prev" aria-label="รูปก่อนหน้า">${icon('chevL')}</button>
+      <button class="lb-nav next" data-lb="next" aria-label="รูปถัดไป">${icon('chevR')}</button>
+      <div class="lb-thumbs">${images.map((im, k) => html`<button data-k="${k}" style="background-image:url('${im.src}')" aria-label="รูปที่ ${k + 1}"></button>`)}</div>` : ''}`);
+  document.body.append(d);
+  const img = $('img', d);
+  const show = () => {
+    const im = images[i];
+    d.classList.remove('zoom');
+    d.classList.add('loading');
+    img.onload = () => d.classList.remove('loading');
+    img.onerror = () => d.classList.remove('loading');
+    img.src = im.src;
+    $('.lb-cap', d).textContent = im.caption || '';
+    $('.lb-count', d).textContent = images.length > 1 ? `${i + 1} / ${images.length}` : '';
+    $('[data-lb="open"]', d).href = im.src;
+    $$('.lb-thumbs button', d).forEach((b, k) => b.classList.toggle('on', k === i));
+  };
+  const go = (n) => { i = (i + n + images.length) % images.length; show(); };
+  const close = () => d.close();
+  d.addEventListener('close', () => { document.removeEventListener('keydown', onKey); d.remove(); });
+  const onKey = (e) => {
+    if (e.key === 'ArrowLeft') go(-1);
+    else if (e.key === 'ArrowRight') go(1);
+  };
+  document.addEventListener('keydown', onKey);
+  d.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lb]');
+    const t = e.target.closest('[data-k]');
+    if (t) { i = +t.dataset.k; show(); return; }
+    if (e.target === img) { d.classList.toggle('zoom'); return; }
+    if (!b) { if (e.target.classList.contains('lb-stage') || e.target === d) close(); return; }
+    const a = b.dataset.lb;
+    if (a === 'close') close();
+    if (a === 'prev') go(-1);
+    if (a === 'next') go(1);
+    if (a === 'replace') { close(); onReplace(i); }
+  });
+  let sx = null;
+  d.addEventListener('touchstart', (e) => { sx = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  d.addEventListener('touchend', (e) => {
+    if (sx === null || d.classList.contains('zoom')) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    sx = null;
+  });
+  d.showModal();
+  show();
+}
+
 export function confirmBox(message, { ok = 'ยืนยัน', danger = false, input = null } = {}) {
   return new Promise((resolve) => {
     let result = false;

@@ -1,6 +1,6 @@
 import {
   state, html, raw, mount, $, $$, icon, api, get, qs, fmtDate, fmtDateTime, fmtRange, fmtMoney, fmtNum, bookingBadge, parseDate,
-  loadingHtml, emptyHtml, pager, debounce, toast, toastError, confirmBox, modal, enhanceCombos, fileUrl, setBusy, fullName, today,
+  loadingHtml, emptyHtml, pager, debounce, toast, toastError, confirmBox, modal, enhanceCombos, fileUrl, setBusy, fullName, today, lightbox,
 } from '../core.js';
 
 const SCOPES = {
@@ -233,7 +233,7 @@ async function renderDetail({ root, setTitle, alive }, id) {
       </div>
     </div>
     <div class="stack">
-      ${b.car_picture ? html`<div class="card" style="overflow:hidden"><img src="${fileUrl('car', b.car_picture)}" alt="" style="width:100%;aspect-ratio:16/10;object-fit:cover;display:block"></div>` : ''}
+      ${b.car_picture ? html`<div class="card" style="overflow:hidden"><img id="car-pic" class="zoomable" src="${fileUrl('car', b.car_picture)}" alt="รูปรถ ${b.car_id__t || ''}" title="คลิกเพื่อดูรูปขนาดใหญ่" style="width:100%;aspect-ratio:16/10;object-fit:cover;display:block"></div>` : ''}
       <div class="card card-b"><h3 style="margin-bottom:14px">ความคืบหน้า</h3><div class="timeline">
         ${step(true, 'primary', 'plus', 'สร้างคำขอจอง', fmtDateTime(b.date_create), b.user_save_id__t)}
         ${step(!!b.read_date, 'info', 'eye', 'ผู้อนุมัติเปิดอ่าน', fmtDateTime(b.read_date))}
@@ -245,6 +245,18 @@ async function renderDetail({ root, setTitle, alive }, id) {
       </div></div>
     </div>
   </div>`);
+
+  $('#car-pic', root)?.addEventListener('click', async () => {
+    // show every photo of this car, starting with the main one
+    let images = [{ src: fileUrl('car', b.car_picture), caption: b.car_id__t }];
+    try {
+      const car = await get(`r/car/${b.car_id}`);
+      const all = ['picture1', 'picture2', 'picture3', 'picture4', 'picture5'].filter((k) => car[k])
+        .map((k, n) => ({ src: fileUrl('car', car[k]), caption: `${b.car_id__t} · รูปที่ ${n + 1}` }));
+      if (all.length) images = all;
+    } catch { /* fall back to the single photo */ }
+    lightbox(images, 0);
+  });
 
   $('#actions', root).addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-act]');

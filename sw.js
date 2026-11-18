@@ -1,5 +1,5 @@
 // GB CarSys service worker — app shell offline + cached API reads
-const VERSION = 'gbcars-v1';
+const VERSION = 'gbcars-v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
@@ -13,7 +13,9 @@ const DATA_CACHE = `${VERSION}-data`;
 const FILE_CACHE = `${VERSION}-files`;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL_CACHE)
+    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -43,15 +45,15 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(networkFirst(req, DATA_CACHE));
     return;
   }
-  // app shell: network-first for HTML so updates appear, cache-first for assets
-  if (req.mode === 'navigate') { e.respondWith(networkFirst(req, SHELL_CACHE, 'index.html')); return; }
-  e.respondWith(staleWhileRevalidate(req, SHELL_CACHE));
+  // app shell (HTML, JS modules, CSS): always revalidate with the server so every file comes from
+  // the same release (mixing old and new ES modules breaks imports); use the cache only offline.
+  e.respondWith(networkFirst(req, SHELL_CACHE, req.mode === 'navigate' ? 'index.html' : null, { cache: 'no-cache' }));
 });
 
-async function networkFirst(req, cacheName, fallbackUrl) {
+async function networkFirst(req, cacheName, fallbackUrl, init) {
   const cache = await caches.open(cacheName);
   try {
-    const res = await fetch(req);
+    const res = await fetch(req, init);
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (err) {

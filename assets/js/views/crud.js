@@ -1,6 +1,6 @@
 import {
   state, html, raw, mount, $, $$, icon, api, get, qs, fmtDate, fmtMoney, fmtNum, fmtTime, carBadge, expiryBadge, loadingHtml, emptyHtml, pager,
-  debounce, toast, toastError, confirmBox, modal, formHtml, readForm, enhanceCombos, invalidateLookup, fileUrl, setBusy, today, initials,
+  debounce, toast, toastError, confirmBox, modal, formHtml, readForm, enhanceCombos, invalidateLookup, fileUrl, setBusy, today, initials, lightbox,
 } from '../core.js';
 
 const LOOKUP_OF = { car: 'car', driver: 'driver', user: 'user', depart: 'depart', faculty: 'faculty', province: 'province', brand: 'brand',
@@ -135,11 +135,12 @@ async function renderPage({ root, setTitle, alive, route }, meta, id) {
   const isCar = meta.name === 'car';
 
   mount(root, html`<form id="pf" class="stack" novalidate>
-    ${meta.images?.length && id ? html`<div class="card"><div class="card-h"><h2 class="grow">รูปภาพ</h2>${ro ? '' : html`<span class="muted small">คลิกช่องเพื่ออัปโหลด/เปลี่ยนรูป</span>`}</div>
+    ${meta.images?.length && id ? html`<div class="card"><div class="card-h"><h2 class="grow">รูปภาพ</h2><span class="muted small">คลิกรูปเพื่อดูขนาดใหญ่${ro ? '' : ' · คลิกช่องว่างเพื่ออัปโหลด'}</span></div>
       <div class="card-b"><div class="gallery" style="${meta.images.length === 1 ? 'grid-template-columns:160px' : ''}">
-      ${meta.images.map((f, i) => html`<label class="slot ${data[f] ? 'has' : ''}" style="${data[f] ? `background-image:url('${fileUrl(meta.uploadType, data[f])}')` : ''}" data-img="${f}">
-        ${data[f] ? html`<span>เปลี่ยนรูป</span>` : html`<div class="center">${icon('image')}<div>รูปที่ ${i + 1}</div></div>`}
-        ${ro ? '' : html`<input type="file" accept="image/*" hidden data-upload="${f}">`}</label>`)}
+      ${meta.images.map((f, i) => html`<div class="slot ${data[f] ? 'has' : ''}" role="button" tabindex="0" data-img="${f}" data-src="${data[f] ? fileUrl(meta.uploadType, data[f]) : ''}" data-label="รูปที่ ${i + 1}"
+          style="${data[f] ? `background-image:url('${fileUrl(meta.uploadType, data[f])}')` : ''}">
+        ${data[f] ? html`<span>${icon('eye')} ดูรูป</span>` : html`<div class="center">${icon(ro ? 'image' : 'upload')}<div>${ro ? `รูปที่ ${i + 1}` : `เพิ่มรูปที่ ${i + 1}`}</div></div>`}
+        ${ro ? '' : html`<input type="file" accept="image/*" hidden data-upload="${f}">`}</div>`)}
       </div></div></div>` : ''}
     <div class="card">
       <div class="card-h"><h2 class="grow">${meta.title}</h2>
@@ -237,9 +238,13 @@ async function renderPage({ root, setTitle, alive, route }, meta, id) {
       const slot = up.closest('.slot'); slot.style.opacity = '.5';
       try {
         const r = await api('POST', `r/${meta.name}/${id}/image/${up.dataset.upload}`, fd);
-        slot.style.backgroundImage = `url('${fileUrl(meta.uploadType, r.file)}')`; slot.classList.add('has'); toast('อัปโหลดรูปแล้ว');
+        const src = fileUrl(meta.uploadType, r.file);
+        slot.style.backgroundImage = `url('${src}')`; slot.dataset.src = src; slot.classList.add('has');
+        slot.querySelector('.center')?.replaceWith(Object.assign(document.createElement('span'), { innerHTML: `${icon('eye').__raw} ดูรูป` }));
+        toast('อัปโหลดรูปแล้ว');
       } catch (err) { toastError(err); }
       slot.style.opacity = '';
+      up.value = '';
     }
     if (e.target.id === 'carfile' && e.target.files[0]) {
       const r = await confirmBox(`อัปโหลด “${e.target.files[0].name}”`, { ok: 'อัปโหลด', input: 'คำอธิบายไฟล์ เช่น เล่มทะเบียน, กรมธรรม์' });
@@ -248,7 +253,22 @@ async function renderPage({ root, setTitle, alive, route }, meta, id) {
       try { await api('POST', `carfile/${id}`, fd); toast('อัปโหลดแล้ว'); renderPage({ root, setTitle, alive, route }, meta, id); } catch (err) { toastError(err); }
     }
   });
+  /* gallery: photo -> large popup, empty slot -> upload */
+  const openSlot = (slot) => {
+    const input = slot.querySelector('[data-upload]');
+    if (!slot.dataset.src) { input?.click(); return; }
+    const slots = $$('.slot[data-src]', root).filter((s) => s.dataset.src);
+    lightbox(slots.map((s) => ({ src: s.dataset.src, caption: `${titleText} · ${s.dataset.label}` })), slots.indexOf(slot), {
+      onReplace: ro ? null : (i) => slots[i].querySelector('[data-upload]')?.click(),
+    });
+  };
+  root.addEventListener('keydown', (e) => {
+    const slot = e.target.closest('.slot[data-img]');
+    if (slot && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openSlot(slot); }
+  });
   root.addEventListener('click', async (e) => {
+    const slot = e.target.closest('.slot[data-img]');
+    if (slot && !e.target.closest('input')) { openSlot(slot); return; }
     const b = e.target.closest('[data-delfile]');
     if (!b) return;
     if (!await confirmBox('ลบไฟล์นี้?', { ok: 'ลบ', danger: true })) return;
