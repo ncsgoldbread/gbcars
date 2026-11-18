@@ -1,6 +1,9 @@
 # secrets / local settings
 config/config.php
 
+# deployment bundle: real data dump + production config
+deploy/
+
 # uploaded files (car photos, documents) — copy separately, never commit
 uploads/*
 !uploads/.htaccess
