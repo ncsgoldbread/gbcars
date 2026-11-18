@@ -1,12 +1,12 @@
 // GB CarSys service worker — app shell offline + cached API reads
-const VERSION = 'gbcars-v4';
+const VERSION = 'gbcars-v5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
   'assets/js/app.js', 'assets/js/core.js',
   'assets/js/views/dashboard.js', 'assets/js/views/calendar.js', 'assets/js/views/booking.js',
   'assets/js/views/crud.js', 'assets/js/views/reports.js', 'assets/js/views/profile.js',
-  'assets/icons/icon.svg', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png',
+  'favicon.ico', 'assets/icons/favicon-32.png', 'assets/icons/logo-128.png', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png',
 ];
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;

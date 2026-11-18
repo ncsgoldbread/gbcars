@@ -151,7 +151,7 @@ function ensureShell() {
   mount(document.body, html`
     <div class="app">
       <aside class="sidebar" aria-label="เมนูหลัก">
-        <a class="brand" href="#/"><div class="brand-logo">${icon('car')}</div><div class="grow"><b class="truncate">${company.webheader || 'GB CarSys'}</b><small class="truncate">${company.name || 'ระบบบริหารการใช้รถ'}</small></div></a>
+        <a class="brand" href="#/"><div class="brand-logo"><img src="assets/icons/logo-128.png" alt=""></div><div class="grow"><b class="truncate">${company.webheader || 'GB CarSys'}</b><small class="truncate">${company.name || 'ระบบบริหารการใช้รถ'}</small></div></a>
         <nav class="nav" id="nav"></nav>
         <div class="sidebar-foot"><span>GB CarSys 2.0</span><span>PWA</span></div>
       </aside>
@@ -329,7 +329,7 @@ function showLogin() {
   mount(document.body, html`
     <div class="login-wrap">
       <section class="login-art">
-        <div class="brand"><div class="brand-logo">${icon('car')}</div><div><b>${company.webheader || 'GB CarSys'}</b><small>${company.name || ''}</small></div></div>
+        <div class="brand"><div class="brand-logo lg"><img src="assets/icons/logo-128.png" alt=""></div><div><b>${company.webheader || 'GB CarSys'}</b><small>${company.name || ''}</small></div></div>
         <div>
           <h1>บริหารการใช้รถองค์กร<br><em>ครบ จบ ในที่เดียว</em></h1>
           <p class="hide-sm">จองรถจากที่ไหนก็ได้ อนุมัติทันที ติดตามรถทุกคันบนปฏิทิน และรับแจ้งเตือนก่อนเอกสารรถหมดอายุ</p>
