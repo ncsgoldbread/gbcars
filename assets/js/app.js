@@ -326,46 +326,99 @@ function updateThemeIcon() { const b = $('#theme-btn'); if (b) mount(b, icon(cur
 function showLogin() {
   const company = state.company || {};
   document.title = `เข้าสู่ระบบ · ${company.webheader || 'GB CarSys'}`;
+  const owner = company.name || 'บริษัท เอ็น.ซี.เอส.โกลด์เบรด จำกัด';
+  let saved = '';
+  try { saved = localStorage.getItem('loginUser') || ''; } catch { /* storage blocked */ }
   mount(document.body, html`
-    <div class="login-wrap">
-      <section class="login-art">
-        <div class="brand"><div class="brand-logo lg"><img src="assets/icons/logo-128.png" alt=""></div><div><b>${company.webheader || 'GB CarSys'}</b><small>${company.name || ''}</small></div></div>
-        <div>
-          <h1>บริหารการใช้รถองค์กร<br><em>ครบ จบ ในที่เดียว</em></h1>
-          <p class="hide-sm">จองรถจากที่ไหนก็ได้ อนุมัติทันที ติดตามรถทุกคันบนปฏิทิน และรับแจ้งเตือนก่อนเอกสารรถหมดอายุ</p>
-          <div class="login-feats hide-sm">
-            <div>${icon('calendar')} ปฏิทินรถว่าง และจองได้ในไม่กี่คลิก</div>
-            <div>${icon('check')} ขั้นตอนอนุมัติ ส่งคืน รับคืนรถ ตรวจสอบได้</div>
-            <div>${icon('shield')} แจ้งเตือนภาษี พ.ร.บ. ประกันภัย ก่อนหมดอายุ</div>
-          </div>
+    <div class="login">
+      <section class="login-brand">
+        ${raw(`<svg class="login-road wide" viewBox="0 0 700 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <path d="M-40 760 C 140 700, 180 560, 330 540 S 560 600, 620 430 S 560 180, 760 120" fill="none" stroke="#24314D" stroke-width="56" stroke-linecap="round"/>
+          <path d="M-40 760 C 140 700, 180 560, 330 540 S 560 600, 620 430 S 560 180, 760 120" fill="none" stroke="#E3A22B" stroke-width="3" stroke-dasharray="14 16" stroke-linecap="round" opacity=".85"/>
+          <path d="M120 980 C 220 860, 420 820, 470 700 S 400 470, 520 360" fill="none" stroke="#1F2A42" stroke-width="34" stroke-linecap="round"/>
+          <circle cx="620" cy="430" r="11" fill="#172033" stroke="#E3A22B" stroke-width="4"/>
+          <circle cx="620" cy="430" r="26" fill="none" stroke="#E3A22B" stroke-width="2" opacity=".35"/></svg>
+        <svg class="login-road narrow" viewBox="0 0 390 320" preserveAspectRatio="xMinYMin slice" aria-hidden="true">
+          <path d="M-20 300 C 80 250, 120 180, 210 170 S 340 200, 410 60" fill="none" stroke="#24314D" stroke-width="34" stroke-linecap="round"/>
+          <path d="M-20 300 C 80 250, 120 180, 210 170 S 340 200, 410 60" fill="none" stroke="#E3A22B" stroke-width="2.5" stroke-dasharray="10 12" stroke-linecap="round" opacity=".85"/>
+          <circle cx="210" cy="170" r="8" fill="#172033" stroke="#E3A22B" stroke-width="3"/></svg>`)}
+        <div class="login-mark">
+          <img src="assets/icons/logo-128.png" alt="">
+          <div><b>GB CarSys</b><small>N.C.S. Gold Bread</small></div>
         </div>
-        <div class="xs hide-sm" style="color:#64748b">© ${new Date().getFullYear() + 543} ${company.name || 'GB CarSys'} · GB CarSys 2.0</div>
+        <div class="login-pitch">
+          <span class="login-pill">ระบบบริหารการใช้รถ</span>
+          <h1>จอง อนุมัติ ติดตามรถ<span class="wide"><br>ครบจบในที่เดียว</span></h1>
+          <p class="wide">จัดการการใช้รถของบริษัทได้ง่าย ทั้งบนคอมพิวเตอร์และมือถือ</p>
+          <p class="narrow">ระบบบริหารการใช้รถ</p>
+        </div>
+        <div class="login-chips">
+          <span>${icon('calendar')} จองรถ</span>
+          <span>${icon('checkCircle')} อนุมัติออนไลน์</span>
+          <span>${icon('pin')} ติดตามรถ</span>
+        </div>
       </section>
-      <section class="login-form">
-        <form id="login" autocomplete="on" novalidate>
-          <div><h2 style="font-size:1.5rem">เข้าสู่ระบบ</h2><p class="muted" style="margin:.35rem 0 0">ใช้ชื่อผู้ใช้และรหัสผ่านของคุณ</p></div>
-          <div id="login-err"></div>
-          <div class="field"><label for="u">ชื่อผู้ใช้</label><input class="input" id="u" name="username" autocomplete="username" required autofocus></div>
-          <div class="field"><label for="p">รหัสผ่าน</label><input class="input" id="p" name="password" type="password" autocomplete="current-password" required></div>
-          <button class="btn btn-primary btn-lg btn-block" type="submit">เข้าสู่ระบบ ${icon('arrowR')}</button>
-          <p class="muted xs center" style="margin:0">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบเพื่อตั้งรหัสใหม่</p>
+      <main class="login-main">
+        <form id="login" class="login-form" autocomplete="on" novalidate>
+          <div class="login-head">
+            <h2>เข้าสู่ระบบ</h2>
+            <p class="wide">ยินดีต้อนรับกลับมา กรุณากรอกข้อมูลเพื่อใช้งาน</p>
+          </div>
+          <div id="login-err" aria-live="polite"></div>
+          <div class="login-fields">
+            <div class="login-field">
+              <label for="u">ชื่อผู้ใช้</label>
+              <div class="login-input">${icon('user')}<input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="ชื่อผู้ใช้ของคุณ" required value="${saved}"></div>
+            </div>
+            <div class="login-field">
+              <label for="p">รหัสผ่าน</label>
+              <div class="login-input">${icon('lock')}<input id="p" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+                <button type="button" class="login-eye" id="pw-eye" aria-label="แสดงรหัสผ่าน" aria-pressed="false">${icon('eye')}</button></div>
+            </div>
+            <div class="login-row">
+              <label class="login-check"><input type="checkbox" id="remember" ${saved ? 'checked' : ''}> <span class="wide">จดจำชื่อผู้ใช้ในเครื่องนี้</span><span class="narrow">จดจำชื่อผู้ใช้</span></label>
+              <button type="button" class="login-link" id="forgot">ลืมรหัสผ่าน?</button>
+            </div>
+          </div>
+          <button class="login-submit" type="submit">เข้าสู่ระบบ ${icon('arrowR')}</button>
+          <div class="login-note wide">${icon('info')}<span>ยังไม่มีบัญชีหรือเข้าระบบไม่ได้ ติดต่อฝ่ายไอที</span></div>
+          <div class="login-foot">
+            <span class="narrow">เข้าระบบไม่ได้? ติดต่อฝ่ายไอที</span>
+            <span>© ${owner}</span>
+          </div>
         </form>
-      </section>
+      </main>
     </div>`);
+
+  const showMsg = (kind, text) => mount($('#login-err'), html`<div class="alert ${kind}">${icon(kind === 'err' ? 'alert' : 'info')}<span>${text}</span></div>`);
+  $('#pw-eye').addEventListener('click', (e) => {
+    const p = $('#p'), btn = e.currentTarget, show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', String(show));
+    btn.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+    mount(btn, icon(show ? 'eyeOff' : 'eye'));
+    p.focus();
+  });
+  ['#u', '#p'].forEach((s) => $(s).addEventListener('input', (e) => e.target.removeAttribute('aria-invalid')));
+  $('#forgot').addEventListener('click',() => showMsg('info', 'ระบบยังไม่มีการตั้งรหัสผ่านใหม่ด้วยตนเอง กรุณาติดต่อฝ่ายไอทีหรือผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่'));
+  // focus the first empty field on desktop only (avoids popping the keyboard on phones)
+  if (matchMedia('(pointer: fine)').matches) (saved ? $('#p') : $('#u')).focus();
+
   $('#login').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!$('#u').value.trim() || !$('#p').value) {
-      mount($('#login-err'), html`<div class="alert err">${icon('alert')}<span>กรุณากรอกชื่อผู้ใช้และรหัสผ่าน</span></div>`);
-      return;
-    }
-    const btn = e.submitter || $('#login button');
+    const u = $('#u').value.trim(), p = $('#p').value;
+    $('#u').toggleAttribute('aria-invalid', !u);
+    $('#p').toggleAttribute('aria-invalid', !p);
+    if (!u || !p) { showMsg('err', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'); (u ? $('#p') : $('#u')).focus(); return; }
+    const btn = e.submitter || $('#login .login-submit');
     setBusy(btn, true, 'กำลังตรวจสอบ…');
     try {
-      const s = await api('POST', 'login', { username: $('#u').value, password: $('#p').value });
+      const s = await api('POST', 'login', { username: u, password: p });
+      try { if ($('#remember').checked) localStorage.setItem('loginUser', u); else localStorage.removeItem('loginUser'); } catch { /* storage blocked */ }
       state.user = s.user; state.csrf = s.csrf; state.company = s.company; NAV = null;
       await boot();
     } catch (err) {
-      mount($('#login-err'), html`<div class="alert err">${icon('alert')}<span>${err.message}</span></div>`);
+      showMsg('err', err.message);
       setBusy(btn, false);
       $('#p').select();
     }
